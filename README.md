@@ -29,7 +29,6 @@ In an SQL DB transactions are forgotten after executed, only the DB state matter
 This by itself enables the SQL database to hold much less space than Bitcoin/Eth in the long term.
 Encorages users to delete unneeded data, and to perform little transactions, but if they want to do many, they can.
 
-
 # What technologies it has?
 
 - PostgreSQL(libpbxx): Main Database, contains all the data and executes the transactions. Also ensures permissions.
@@ -38,6 +37,9 @@ Encorages users to delete unneeded data, and to perform little transactions, but
 - Pybind11: Provides C++/Python interfaces
 
 # How to build and develop ?
+Just preinstall these requisites:
+* apt-get install libpython-dev libboost-dev libpq-dev libpqxx-dev ninja-build
 
-* sudo aptitude install libpython-dev libboost-dev libpq-dev libpqxx-dev ninja-build
-* Use cmake manually or setup.py
+Then use any of these:
+* Cmake manually `mkdir build; cd build; cmake ..; make`
+* `setup.py`
