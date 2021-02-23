@@ -9,7 +9,7 @@ jobs:
       - checkout
       - run:
           name: Installing TOOLs
-          command: 'apt-get update && apt-get install -y gcc g++ build-essentials cmake libpython-dev libboost-dev libpq-dev libpqxx-dev ninja-build'
+          command: 'sudo apt-get update && apt-get install -y gcc g++ build-essentials cmake libpython-dev libboost-dev libpq-dev libpqxx-dev ninja-build'
       - run:
           name: Creating Build Files
           command: 'cmake -H. -Bbuild'
