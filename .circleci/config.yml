@@ -2,9 +2,9 @@
 version: 2.1
 
 jobs:
-  build: # name of your job
-    machine: # executor type
-      image: cimg/base:stable
+  build:
+    docker:
+      - image: cimg/base:stable
     steps:
       - checkout
       - run:
