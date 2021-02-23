@@ -1,0 +1,22 @@
+# Use the latest 2.1 version of CircleCI pipeline process engine. See: https://circleci.com/docs/2.0/configuration-reference
+version: 2.1
+
+jobs:
+  build: # name of your job
+    machine: # executor type
+      image: ubuntu-2004:202010-01 # # recommended linux image - includes Ubuntu 20.04, docker 19.03.13, docker-compose 1.27.4
+    steps:
+      - checkout
+      - run:
+          name: Installing SUDO
+          command: 'apt-get update && apt-get install -y sudo && rm -rf /var/lib/apt/lists/*'
+      - run:
+          name: Installing TOOLs
+          command: 'apt-get update && apt-get install -y gcc g++ build-essentials cmake libpython-dev libboost-dev libpq-dev libpqxx-dev ninja-build'
+      - run:
+          name: Creating Build Files
+          command: 'cmake -H. -Bbuild'
+      - run:
+          name: Creating Binary Files
+          command: 'cmake --build build'
+
