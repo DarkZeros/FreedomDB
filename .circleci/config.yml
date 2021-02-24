@@ -11,9 +11,17 @@ jobs:
           name: Installing TOOLs
           command: 'sudo apt-get update && sudo apt-get install -y gcc g++ build-essential cmake libpython3-dev libboost-dev libpq-dev libpqxx-dev ninja-build'
       - run:
+          name: Prepare submodules
+          command: 'git submodule update --init --recursive'
+      - run:
           name: Creating Build Files
           command: 'cmake -H. -Bbuild'
       - run:
-          name: Creating Binary Files
+          name: Building
           command: 'cmake --build build'
-
+      - run:
+          name: Native tests
+          command: './build/native-tests'
+      - run:
+          name: Python tests
+          command: 'pytest tests'
