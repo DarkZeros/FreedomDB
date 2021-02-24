@@ -11,7 +11,7 @@ jobs:
           name: Installing TOOLs
           command: |
             sudo apt-get update
-            sudo apt-get install -y gcc g++ build-essential cmake 
+            sudo apt-get install -y gcc g++ build-essential cmake
             sudo apt-get install -y python3 python3-pip python3-distutils
             sudo apt-get install -y libpython3-dev libboost-dev libpq-dev libpqxx-dev ninja-build
             pip3 install pytest
@@ -22,8 +22,8 @@ jobs:
       - run:
           name: Building Debug
           command: |
-            cmake -H. -Bdebug -DCMAKE_BUILD_TYPE=Debug
-            cmake --build debug -- -j16
+            cmake -H. -Bdebug -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTS=ON
+            cmake --build debug -- -j
       - store_artifacts:
           path: debug/freedomdb-tool
 
@@ -31,7 +31,7 @@ jobs:
           name: Building Release
           command: |
             cmake -H. -Brelease -DCMAKE_BUILD_TYPE=Release
-            cmake --build debug -- -j16
+            cmake --build release -- -j
       - store_artifacts:
           path: release/freedomdb-tool
 
@@ -39,8 +39,6 @@ jobs:
           name: Building Python
           command: |
             sudo python3 ./setup.py install
-      - store_artifacts:
-          path: release/freedomdb-tool
 
 #  tests_native:
  #   docker:
@@ -50,9 +48,12 @@ jobs:
       - run:
           name: Native tests
           command: |
-            ./debug/native-tests -r junit -o catch_results.xml || true
+            mkdir -p catch-results
+            ./debug/native-tests -r junit -o catch-results/junit.xml || true
       - store_test_results:
-          path: catch_results.xml
+          path: catch-results
+      - store_artifacts:
+          path: catch-results
 
 #  tests_python:
  #   docker:
@@ -66,7 +67,7 @@ jobs:
       - store_test_results:
           path: test-results
       - store_artifacts:
-          path: test-results  
+          path: test-results
 
 #workflows:
   #build_and_test:
