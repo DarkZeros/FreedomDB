@@ -36,6 +36,13 @@ jobs:
           path: release/freedomdb-tool
 
       - run:
+          name: Building Python
+          command: |
+            ./setup.py install
+      - store_artifacts:
+          path: release/freedomdb-tool
+
+      - run:
           name: Native tests
           command: |
             ./debug/native-tests -r junit -o catch_results.xml
