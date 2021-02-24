@@ -19,9 +19,9 @@ add_subdirectory(modules/pybind11)
 # This line adds both include paths and libraries for Postgres
 
 option(USE_CLANG "Use Clang compiler" OFF) # TODO
-option(TESTING "Build tests" ON)
-option(EXAMPLES "Build examples" ON)
-option(CLANG_FORMAT "Enable clang-format target" ON)
+option(BUILD_TESTS "Build tests" OFF)
+option(BUILD_EXAMPLES "Build examples" OFF)
+option(CLANG_FORMAT "Enable clang-format target" OFF)
 option(CLANG_TIDY "Enable clang-tidy checks during compilation" OFF)
 option(COVERAGE "Enable generation of coverage info" OFF)
 option(ASAN "Enable address sanitizer" OFF)
@@ -83,11 +83,13 @@ add_executable(freedomdb-tool
 )
 
 #### Tests
-add_subdirectory(modules/Catch2)
-add_executable(native-tests
-  tests/main.cpp
-)
-target_link_libraries(native-tests PRIVATE Catch2::Catch2WithMain)
+if (BUILD_TESTS)
+  add_subdirectory(modules/Catch2)
+  add_executable(native-tests
+    tests/main.cpp
+  )
+  target_link_libraries(native-tests PRIVATE Catch2::Catch2WithMain)
+endif ()
 
 #### installation TODO
 install(TARGETS freedomdb
