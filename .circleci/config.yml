@@ -2,7 +2,7 @@
 version: 2.1
 
 jobs:
-  prepare:
+  build:
     docker:
       - image: cimg/base:stable
     steps:
@@ -19,12 +19,6 @@ jobs:
           name: Prepare submodules
           command: |
             git submodule update --init --recursive
-
-  build:
-    docker:
-      - image: cimg/base:stable
-    steps:
-      - checkout
       - run:
           name: Building Debug
           command: |
@@ -48,11 +42,11 @@ jobs:
       - store_artifacts:
           path: release/freedomdb-tool
 
-  tests_native:
-    docker:
-      - image: cimg/base:stable
-    steps:
-      - checkout
+#  tests_native:
+ #   docker:
+  #    - image: cimg/base:stable
+   # steps:
+    #  - checkout
       - run:
           name: Native tests
           command: |
@@ -60,11 +54,11 @@ jobs:
       - store_test_results:
           path: catch_results.xml
 
-  tests_python:
-    docker:
-      - image: cimg/base:stable
-    steps:
-      - checkout
+#  tests_python:
+ #   docker:
+  #    - image: cimg/base:stable
+   # steps:
+    #  - checkout
       - run:
           name: Python tests
           command: |
@@ -74,16 +68,13 @@ jobs:
       - store_artifacts:
           path: test-results  
 
-workflows:
-  build_and_test:
-    jobs:
-      - prepare
-      - build:
-          requires:
-            - prepare
-      - tests_native:
-          requires:
-            - build
-      - tests_python:
-          requires:
-            - build
+#workflows:
+  #build_and_test:
+   # jobs:
+    #  - build
+     # - tests_native:
+      #    requires:
+       #     - build
+      #- tests_python:
+       #   requires:
+        #    - build
