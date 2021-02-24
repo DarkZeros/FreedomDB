@@ -1,0 +1,80 @@
+# Use the latest 2.1 version of CircleCI pipeline process engine. See: https://circleci.com/docs/2.0/configuration-reference
+version: 2.1
+
+jobs:
+  build:
+    docker:
+      - image: cimg/base:stable
+    steps:
+      - checkout
+      - run:
+          name: Installing TOOLs
+          command: |
+            sudo apt-get update
+            sudo apt-get install -y gcc g++ build-essential cmake 
+            sudo apt-get install -y python3 python3-pip python3-distutils
+            sudo apt-get install -y libpython3-dev libboost-dev libpq-dev libpqxx-dev ninja-build
+            pip3 install pytest
+      - run:
+          name: Prepare submodules
+          command: |
+            git submodule update --init --recursive
+      - run:
+          name: Building Debug
+          command: |
+            cmake -H. -Bdebug -DCMAKE_BUILD_TYPE=Debug
+            cmake --build debug -- -j16
+      - store_artifacts:
+          path: debug/freedomdb-tool
+
+      - run:
+          name: Building Release
+          command: |
+            cmake -H. -Brelease -DCMAKE_BUILD_TYPE=Release
+            cmake --build debug -- -j16
+      - store_artifacts:
+          path: release/freedomdb-tool
+
+      - run:
+          name: Building Python
+          command: |
+            sudo python3 ./setup.py install
+      - store_artifacts:
+          path: release/freedomdb-tool
+
+#  tests_native:
+ #   docker:
+  #    - image: cimg/base:stable
+   # steps:
+    #  - checkout
+      - run:
+          name: Native tests
+          command: |
+            ./debug/native-tests -r junit -o catch_results.xml || true
+      - store_test_results:
+          path: catch_results.xml
+
+#  tests_python:
+ #   docker:
+  #    - image: cimg/base:stable
+   # steps:
+    #  - checkout
+      - run:
+          name: Python tests
+          command: |
+            python3 -m pytest tests --junitxml=test-results/junit.xml || true
+      - store_test_results:
+          path: test-results
+      - store_artifacts:
+          path: test-results  
+
+#workflows:
+  #build_and_test:
+   # jobs:
+    #  - build
+     # - tests_native:
+      #    requires:
+       #     - build
+      #- tests_python:
+       #   requires:
+        #    - build
