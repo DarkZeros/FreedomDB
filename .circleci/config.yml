@@ -9,19 +9,29 @@ jobs:
       - checkout
       - run:
           name: Installing TOOLs
-          command: 'sudo apt-get update && sudo apt-get install -y gcc g++ build-essential cmake python3-distutils libpython3-dev libboost-dev libpq-dev libpqxx-dev ninja-build'
+          command: |
+            sudo apt-get update
+            sudo apt-get install -y gcc g++ build-essential cmake python3-distutils 
+            sudo apt-get install -y libpython3-dev libboost-dev libpq-dev libpqxx-dev ninja-build
       - run:
           name: Prepare submodules
-          command: 'git submodule update --init --recursive'
+          command: |
+            git submodule update --init --recursive
       - run:
-          name: Creating Build Files
-          command: 'cmake -H. -Bbuild'
+          name: Building Debug
+          command: |
+            cmake -H. -Bdebug -DCMAKE_BUILD_TYPE=Debug
+            cmake --build debug -- -j16
       - run:
-          name: Building
-          command: 'cmake --build build'
+          name: Building Release
+          command: |
+            cmake -H. -Brelease -DCMAKE_BUILD_TYPE=Release
+            cmake --build debug -- -j16
+      - store_artifacts:
+          path: /debug/*.so
       - run:
           name: Native tests
-          command: './build/native-tests'
+          command: './debug/native-tests'
       - run:
           name: Python tests
           command: 'pytest tests'
