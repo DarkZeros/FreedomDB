@@ -22,16 +22,24 @@ jobs:
           command: |
             cmake -H. -Bdebug -DCMAKE_BUILD_TYPE=Debug
             cmake --build debug -- -j16
+      - store_artifacts:
+          path: debug/*.so
+      - store_artifacts:
+          path: debug/freedomdb-tool
       - run:
           name: Building Release
           command: |
             cmake -H. -Brelease -DCMAKE_BUILD_TYPE=Release
             cmake --build debug -- -j16
       - store_artifacts:
-          path: /debug/*.so
+          path: release/*.so
+      - store_artifacts:
+          path: release/freedomdb-tool
       - run:
           name: Native tests
-          command: './debug/native-tests'
+          command: |
+            ./debug/native-tests
       - run:
           name: Python tests
-          command: 'pytest tests'
+          command: |
+            python -m pytest tests
