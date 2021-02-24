@@ -38,7 +38,7 @@ jobs:
       - run:
           name: Building Python
           command: |
-            python3 ./setup.py install
+            sudo python3 ./setup.py install
       - store_artifacts:
           path: release/freedomdb-tool
 
