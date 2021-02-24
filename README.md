@@ -38,8 +38,9 @@ Encorages users to delete unneeded data, and to perform little transactions, but
 
 # How to build and develop ?
 Just preinstall these requisites:
-* apt-get install libpython-dev libboost-dev libpq-dev libpqxx-dev ninja-build
+* `sudo apt-get install build-essential cmake libpython3-dev libboost-dev libpq-dev libpqxx-dev ninja-build`
+* `git submodule update --init --recursive`
 
 Then use any of these:
-* Cmake manually `mkdir build; cd build; cmake ..; make`
-* `setup.py`
+* Cmake manually: `cmake -H. -Bbuild; cmake --build build`
+* Python Module: `setup.py`
