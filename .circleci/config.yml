@@ -50,7 +50,7 @@ jobs:
       - run:
           name: Native tests
           command: |
-            ./debug/native-tests -r junit -o catch_results.xml && true
+            ./debug/native-tests -r junit -o catch_results.xml || true
       - store_test_results:
           path: catch_results.xml
 
@@ -62,7 +62,7 @@ jobs:
       - run:
           name: Python tests
           command: |
-            python3 -m pytest tests --junitxml=test-results/junit.xml && true
+            python3 -m pytest tests --junitxml=test-results/junit.xml || true
       - store_test_results:
           path: test-results
       - store_artifacts:
