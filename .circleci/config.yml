@@ -25,23 +25,28 @@ jobs:
             cmake -H. -Bdebug -DCMAKE_BUILD_TYPE=Debug
             cmake --build debug -- -j16
       - store_artifacts:
-          path: debug/*.so
-      - store_artifacts:
-          path: debug/freedomdb-tool
+          path: debug
+
       - run:
           name: Building Release
           command: |
             cmake -H. -Brelease -DCMAKE_BUILD_TYPE=Release
             cmake --build debug -- -j16
       - store_artifacts:
-          path: release/*.so
-      - store_artifacts:
-          path: release/freedomdb-tool
+          path: release
+
       - run:
           name: Native tests
           command: |
-            ./debug/native-tests
+            ./debug/native-tests -o junit --output catch_results.xml
+      - store_test_results:
+          path: catch_results.xml
+
       - run:
           name: Python tests
           command: |
-            python3 -m pytest tests
+            python3 -m pytest tests --junitxml=test-results/junit.xml
+      - store_test_results:
+          path: test-results
+      - store_artifacts:
+          path: test-results  
