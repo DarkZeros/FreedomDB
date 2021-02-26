@@ -4,6 +4,8 @@
 #include <vector>
 #include <mutex>
 
+#include <fmt/core.h>
+
 #define DEFAULT_MIN_LOGLEVEL DEBUG
 
 class Log {

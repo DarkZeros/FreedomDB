@@ -35,6 +35,7 @@ Encorages users to delete unneeded data, and to perform little transactions, but
 - MsgPack: For the P2P exchange of SQL Transactions performed by clients
 - Cryptopp: Glue that ensures crypto security in transactions, blockchain, and DB hashing
 - Pybind11: Provides C++/Python interfaces
+- fmt: Because printing is important
 
 # How to build and develop ?
 Just preinstall these requisites:
