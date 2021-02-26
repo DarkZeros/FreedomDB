@@ -13,3 +13,6 @@
 [submodule "fmt"]
 	path = modules/fmt
 	url = https://github.com/fmtlib/fmt
+[submodule "procxx"]
+	path = modules/procxx
+	url = https://github.com/skystrife/procxx.git
