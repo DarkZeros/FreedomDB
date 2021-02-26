@@ -50,6 +50,7 @@ include_directories(
 )
 include_directories(SYSTEM
   ${PROJECT_SOURCE_DIR}/modules/fmt/include
+  ${PROJECT_SOURCE_DIR}/modules/procxx/include
   ${PROJECT_SOURCE_DIR}/modules/msgpack/include
   ${Boost_INCLUDE_DIRS}
 )
