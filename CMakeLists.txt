@@ -89,6 +89,7 @@ if (BUILD_TESTS)
   add_subdirectory(modules/Catch2)
   add_executable(native-tests
     tests/main.cpp
+    tests/test_p2p.cpp
   )
   target_link_libraries(native-tests PRIVATE Catch2::Catch2WithMain)
 endif ()
