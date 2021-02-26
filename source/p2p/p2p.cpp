@@ -11,13 +11,8 @@
 #include "p2p/p2p.h"
 #include "core/log.h"
 
-P2P::P2P(){
-    mRunning = false;
-}
 
-P2P::~P2P(){
-    stop();
-}
+const std::vector<std::string> P2P::kBootStrap = {}; //{{"127.0.0.1:123"}};
 
 bool P2P::start(){
     std::unique_lock<std::mutex> lock(mThreadMutex);
@@ -41,7 +36,7 @@ bool P2P::start(){
     memset(&hints, 0, sizeof hints);
     hints.ai_family = AF_INET;
     hints.ai_socktype = SOCK_STREAM;
-    if (getaddrinfo(NULL, mPort.c_str(), &hints, &res) != 0) {
+    if (getaddrinfo(NULL, fmt::format("{}", mListenPort).c_str(), &hints, &res) != 0) {
         Log::log(Log::Type::P2P, Log::Level::ERROR, "getaddrinfo %d", errno);
         return false;
     }
@@ -66,13 +61,13 @@ bool P2P::start(){
     }
 
     // Listen
-    if (listen(mMainSocket, mListenQueue) == -1) {
+    if (listen(mMainSocket, kListenQueueLen) == -1) {
         Log::log(Log::Type::P2P, Log::Level::ERROR, "listen %d", errno);
         return false;
     }
     freeaddrinfo(res);
 
-    Log::log(Log::Type::P2P, Log::Level::INFO, "opened listen socket on port %s", mPort.c_str());
+    Log::log(Log::Type::P2P, Log::Level::INFO, "opened listen socket on port %d", mListenPort);
 
     mEventFd = eventfd(0,0);
     if(mEventFd == -1){
@@ -80,10 +75,13 @@ bool P2P::start(){
         return false;
     }
 
-    //Launch thread
+    // Launch listen thread
     mClientSocket.clear();
-    mThread = std::thread(&P2P::thread_loop, this);
+    mThread = std::thread(&P2P::listenThreadLoop, this);
     mRunning = true;
+
+    // Launch connection Thread
+    std::thread(&P2P::sendThreadLoop, this).detach();
 
     return true;
 }
@@ -101,7 +99,49 @@ void P2P::stop(){
     mRunning = false;
 }
 
-int P2P::thread_loop(void) {
+int P2P::sendThreadLoop(void) {
+    Log::log(Log::Type::P2P, Log::Level::INFO, "thread created");
+
+    // Go through each one in the bootstrap listenThreadLoop
+    for (auto& str : mBootStrap) {
+        //Split by ":"
+        std::vector<char> chars(str.c_str(), str.c_str() + str.size() + 1u);
+        char * addr = std::strtok(chars.data(), ":");
+        auto port = atoi(std::strtok(NULL, ":"));
+
+        auto sockfd = socket(AF_INET, SOCK_STREAM, 0);
+        int sock = 0, valread;
+        if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+        {
+           printf("\n Socket creation error \n");
+           return -1;
+        }
+
+        struct sockaddr_in serv_addr;
+        serv_addr.sin_family = AF_INET;
+        serv_addr.sin_port = htons(port);
+
+        // Convert IPv4 and IPv6 addresses from text to binary form
+        if(inet_pton(AF_INET, addr, &serv_addr.sin_addr)<=0)
+        {
+           printf("\nInvalid address/ Address not supported \n");
+           continue;
+        }
+        if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
+        {
+           printf("\nConnection Failed \n");
+           continue;
+        }
+        char *hello = "Hello from client";
+        send(sock , hello , strlen(hello) , 0 );
+        printf("Hello message sent\n");
+        char buffer[1024] = {0};
+        valread = read( sock , buffer, 1024);
+        printf("%s\n",buffer );
+    }
+}
+
+int P2P::listenThreadLoop(void) {
     Log::log(Log::Type::P2P, Log::Level::INFO, "thread created");
 
     //Inaitialize epoll
@@ -194,9 +234,5 @@ int P2P::thread_loop(void) {
 int P2P::getNumClients(){
     std::unique_lock<std::mutex> lock(mDataMutex);
 
-    int num = 0;
-    for(auto& i : mClientSocket){
-        num += i.second.mHandshake;
-    }
-    return num;
+    return mClientSocket.size();
 }
