@@ -13,10 +13,8 @@ find_package(Boost REQUIRED)
 find_package(Threads REQUIRED)
 find_library(PQXX_LIB pqxx REQUIRED)
 find_library(PQ_LIB pq REQUIRED)
-
+add_subdirectory(modules/fmt EXCLUDE_FROM_ALL)
 add_subdirectory(modules/pybind11)
-#sudo aptitude install libpython-dev libboost-dev libpq-dev libpqxx-dev
-# This line adds both include paths and libraries for Postgres
 
 option(USE_CLANG "Use Clang compiler" OFF) # TODO
 option(BUILD_TESTS "Build tests" OFF)
@@ -48,8 +46,10 @@ add_library(freedomdb-static STATIC
   source/core/log.cpp
 )
 include_directories(
-  # project includes
   ${PROJECT_SOURCE_DIR}/source
+)
+include_directories(SYSTEM
+  ${PROJECT_SOURCE_DIR}/modules/fmt/include
   ${PROJECT_SOURCE_DIR}/modules/msgpack/include
   ${Boost_INCLUDE_DIRS}
 )
@@ -69,6 +69,7 @@ target_compile_options(freedomdb-static
 link_libraries(
   freedomdb-static
   ${PQXX_LIB} ${PQ_LIB}
+  fmt::fmt
 )
 
 #### PYBIND11 library
