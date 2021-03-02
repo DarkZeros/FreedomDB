@@ -2,7 +2,7 @@
 version: 2.1
 
 jobs:
-  build:
+  build_debug:
     docker:
       - image: darkzeros/freedomdb:0.0.1
     steps:
@@ -15,7 +15,17 @@ jobs:
             cmake --build debug -- -j
       - store_artifacts:
           path: debug/freedomdb-tool
+      - persist_to_workspace:
+          root: .
+          paths:
+            - debug/*
 
+  build_release:
+    docker:
+      - image: darkzeros/freedomdb:0.0.1
+    steps:
+      - checkout
+      - run: git submodule update --init --recursive
       - run:
           name: Building Release
           command: |
@@ -23,11 +33,32 @@ jobs:
             cmake --build release -- -j
       - store_artifacts:
           path: release/freedomdb-tool
+      - persist_to_workspace:
+          root: .
+          paths:
+            - release/*
 
+  build_python:
+    docker:
+      - image: darkzeros/freedomdb:0.0.1
+    steps:
+      - checkout
+      - run: git submodule update --init --recursive
       - run:
           name: Building Python
           command: sudo python3 ./setup.py install
+      - persist_to_workspace:
+          root: /
+          paths:
+            - usr/local/lib/python3.8/dist-packages/*
 
+  tests_native:
+    docker:
+      - image: darkzeros/freedomdb:0.0.1
+    steps:
+      - checkout
+      - attach_workspace:
+          at: ./
       - run:
           name: Native tests
           command: |
@@ -38,6 +69,13 @@ jobs:
       - store_artifacts:
           path: catch-results
 
+  tests_python:
+    docker:
+      - image: darkzeros/freedomdb:0.0.1
+    steps:
+      - checkout
+      - attach_workspace:
+          at: /
       - run:
           name: Python tests
           command: python3 -m pytest tests --junitxml=test-results/junit.xml
@@ -45,3 +83,16 @@ jobs:
           path: test-results
       - store_artifacts:
           path: test-results
+
+workflows:
+  build_and_test:
+    jobs:
+      - build_debug
+      - build_release
+      - build_python
+      - tests_native:
+          requires:
+            - build_debug
+      - tests_python:
+          requires:
+            - build_python
