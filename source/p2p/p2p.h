@@ -1,21 +1,32 @@
 #pragma once
 
 #include <vector>
+#include <list>
 #include <map>
 #include <mutex>
 #include <atomic>
 #include <thread>
 #include <netdb.h>
+#include <future>
+#include <functional>
 
-class P2P {
+#include "core/nocopyormove.h"
+#include "node.h"
+
+class P2P : private NoCopyOrMove {
 public:
-    struct ClientData {
-        sockaddr_in addr;
-        std::vector<uint8_t> rxBuf;
-
-        //
-        bool mHandshake = false;
+    enum Event : uint8_t {
+        SHUTDOWN = 0, // When is closing
+        CLOSE_CONNECTION,
+        DATA_RECV,
+        NEW_BLOCK,
+        NEW_TX,
+        // ...
     };
+
+    // Callbacks can be added any time (with mutex hold)
+    typedef std::function<bool(Event)> Callback;
+    std::list<Callback> mCallbacks;
 
     static constexpr auto kListenQueueLen = 10;
     static constexpr auto kDefaultListenPort = 11250;
@@ -24,17 +35,27 @@ public:
     int mListenPort = 11250;
     std::vector<std::string> mBootStrap = kBootStrap;
 
+    std::mutex mClientMutex;
+    std::map<int, Node> mClients;
+
 private:
     int mMainSocket = -1;
     int mEventFd = -1;
-    std::map<int, ClientData> mClientSocket;
+    int mEpollFd = -1;
+
+    std::vector<std::future<int>> mTasks;
 
     std::atomic<bool> mRunning = false;
     std::thread mThread;
-    std::mutex mThreadMutex, mDataMutex;
+    std::mutex mThreadMutex;
 
-    int listenThreadLoop(void);
-    int sendThreadLoop(void);
+    void threadLoop(void);
+
+    // Private functions called by thread loop
+    void serveClient(int fd);
+    void newClient(struct epoll_event& ev);
+    void handleEvents();
+    void epollCtl(int op, int fd, uint32_t ev, int data);
 
 public:
     ~P2P() {stop();}
@@ -42,6 +63,7 @@ public:
     bool start();
     void stop();
 
+    int connect(std::string address);
     bool isRunning() {return mRunning;};
     int getNumClients();
 };

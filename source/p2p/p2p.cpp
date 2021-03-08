@@ -16,12 +16,10 @@ const std::vector<std::string> P2P::kBootStrap = {}; //{{"127.0.0.1:123"}};
 
 bool P2P::start(){
     std::unique_lock<std::mutex> lock(mThreadMutex);
-    std::unique_lock<std::mutex> lock2(mDataMutex);
     Log::log(Log::Type::P2P, Log::Level::DEBUG, "Starting P2P network");
 
-    if(mRunning){
+    if (mRunning){
         Log::log(Log::Type::P2P, Log::Level::INFO, "P2P network already running");
-        //stop();
         return true; //Its ok
     }
 
@@ -69,26 +67,38 @@ bool P2P::start(){
 
     Log::log(Log::Type::P2P, Log::Level::INFO, "opened listen socket on port %d", mListenPort);
 
+    // Event Fd to send data to the thread
     mEventFd = eventfd(0,0);
     if(mEventFd == -1){
         Log::log(Log::Type::P2P, Log::Level::ERROR, "Eventfd not set up %d", errno);
         return false;
     }
 
-    // Launch listen thread
-    mClientSocket.clear();
-    mThread = std::thread(&P2P::listenThreadLoop, this);
+    // Initialize epoll that the thread will serve
+    //  we do this before the thread to be able to start straight away
+    //  connecting and adding clients before we even serve it
+    mEpollFd = epoll_create(1);
+
+    // Launch thread
+    std::unique_lock<std::mutex> lock2(mClientMutex);
+    mClients.clear();
+    mThread = std::thread(&P2P::threadLoop, this);
     mRunning = true;
 
-    // Launch connection Thread
-    std::thread(&P2P::sendThreadLoop, this).detach();
+    // Launch connections async on all bootstrap addresses
+    for (auto& str : mBootStrap) {
+        mTasks.emplace_back(std::async(std::launch::async, &P2P::connect, this, str));
+    }
+
+    Log::log(Log::Type::P2P, Log::Level::ERROR, "Done");
 
     return true;
 }
 
 void P2P::stop(){
     std::unique_lock<std::mutex> lock(mThreadMutex);
-    if(mRunning){
+    mTasks.clear();
+    if (mRunning){
         //Send signal to thread via signalfd
         uint64_t u64 = 1;
         write(mEventFd, &u64, sizeof(uint64_t));
@@ -99,140 +109,177 @@ void P2P::stop(){
     mRunning = false;
 }
 
-int P2P::sendThreadLoop(void) {
-    Log::log(Log::Type::P2P, Log::Level::INFO, "thread created");
+int P2P::connect(std::string address) {
+    Log::log(Log::Type::P2P, Log::Level::INFO, "connecting to %s", address.c_str());
 
-    // Go through each one in the bootstrap listenThreadLoop
-    for (auto& str : mBootStrap) {
-        //Split by ":"
-        std::vector<char> chars(str.c_str(), str.c_str() + str.size() + 1u);
-        char * addr = std::strtok(chars.data(), ":");
-        auto port = atoi(std::strtok(NULL, ":"));
+    //Split by ":"
+    std::vector<char> chars(address.c_str(), address.c_str() + address.size() + 1u);
+    char * addr = std::strtok(chars.data(), ":");
+    auto port = atoi(std::strtok(NULL, ":"));
 
-        auto sockfd = socket(AF_INET, SOCK_STREAM, 0);
-        int sock = 0, valread;
-        if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0)
-        {
-           printf("\n Socket creation error \n");
-           return -1;
-        }
-
-        struct sockaddr_in serv_addr;
-        serv_addr.sin_family = AF_INET;
-        serv_addr.sin_port = htons(port);
-
-        // Convert IPv4 and IPv6 addresses from text to binary form
-        if(inet_pton(AF_INET, addr, &serv_addr.sin_addr)<=0)
-        {
-           printf("\nInvalid address/ Address not supported \n");
-           continue;
-        }
-        if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
-        {
-           printf("\nConnection Failed \n");
-           continue;
-        }
-        char *hello = "Hello from client";
-        send(sock , hello , strlen(hello) , 0 );
-        printf("Hello message sent\n");
-        char buffer[1024] = {0};
-        valread = read( sock , buffer, 1024);
-        printf("%s\n",buffer );
-    }
-}
-
-int P2P::listenThreadLoop(void) {
-    Log::log(Log::Type::P2P, Log::Level::INFO, "thread created");
-
-    //Inaitialize epoll
-    int epfd = epoll_create(1);
-    struct epoll_event event;
-    event.events = EPOLLIN;
-    event.data.fd = -1; //-1 is the main socket, not a client socket
-    epoll_ctl(epfd, EPOLL_CTL_ADD, mMainSocket, &event);
-    event.data.fd = -2; //-2 is the event socket
-    epoll_ctl(epfd, EPOLL_CTL_ADD, mEventFd, &event);
-
-    // Main loop
-    while (mRunning) {
-        if(epoll_wait(epfd, &event, 1, -1) == -1){
-            Log::log(Log::Type::P2P, Log::Level::ERROR, "epoll error %d", errno);
-            break;
-        }
-
-        //Exit signal
-        if(event.data.fd == -2){
-            break;
-        }
-
-        std::unique_lock<std::mutex> lock(mDataMutex);
-
-        //Process the socket that has data
-        if(event.data.fd == -1){
-            //New connection in Main socket
-            socklen_t size = sizeof(struct sockaddr_in);
-            struct sockaddr_in their_addr;
-            int newsock = accept(mMainSocket, (struct sockaddr*)&their_addr, &size);
-            if (newsock == -1) {
-                Log::log(Log::Type::P2P, Log::Level::ERROR, "accept error %d", errno);
-            }else{
-                Log::log(Log::Type::P2P, Log::Level::INFO, "Got a connection (id %d) from %s on port %d",
-                        newsock, inet_ntoa(their_addr.sin_addr), htons(their_addr.sin_port));
-                //Add it to the client socket list & epoll
-                mClientSocket[newsock] = {their_addr,{}};
-                event.events = EPOLLIN;
-                event.data.fd = newsock;
-                epoll_ctl(epfd, EPOLL_CTL_ADD, newsock, &event);
-            }
-        }else{
-            //Attend this socket
-            ClientData& data = mClientSocket[event.data.fd];
-            data.rxBuf.resize(data.rxBuf.size()+4096); //Extend it by 4096
-            int valread = -1;
-            if ((valread = read(event.data.fd, data.rxBuf.data()+data.rxBuf.size()-4096, 4096)) == 0){
-                //Somebody disconnected
-                Log::log(Log::Type::P2P, Log::Level::INFO, "Disconnected (id %d) from %s on port %d",
-                        event.data.fd, inet_ntoa(data.addr.sin_addr), htons(data.addr.sin_port));
-
-                //Close the socket and remove from poll
-                close(event.data.fd);
-                mClientSocket.erase(event.data.fd);
-                epoll_ctl(epfd, EPOLL_CTL_DEL, event.data.fd, NULL);
-            }else{
-                //Packet on already connected client
-                Log::log(Log::Type::P2P, Log::Level::DEBUG, "Packet on connected client (size %d)", valread);
-
-                data.rxBuf.resize(data.rxBuf.size()-4096+valread); //Shrink it again
-
-                //Process it
-                //TODO
-
-                //For the time being just print it
-                Log::log(Log::Type::P2P, Log::Level::DEBUG, "Client: %s", data.rxBuf.data());
-            }
-        }
+    auto sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    int sock = 0, valread;
+    if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+    {
+        Log::log(Log::Type::P2P, Log::Level::INFO, "Socket creation error");
+        return -1;
     }
 
-    //Stop epoll
-    close(epfd);
+    struct sockaddr_in sockaddr;
+    sockaddr.sin_family = AF_INET;
+    sockaddr.sin_port = htons(port);
 
-    std::unique_lock<std::mutex> lock(mDataMutex);
-
-    //Stop all sockets
-    for(auto& i : mClientSocket){
-        close(i.first);
+    // Convert IPv4 and IPv6 addresses from text to binary form
+    if (inet_pton(AF_INET, addr, &sockaddr.sin_addr)<=0)
+    {
+        Log::log(Log::Type::P2P, Log::Level::INFO, "Invalid address/ Address not supported");
+        return -2;
     }
-    mClientSocket.clear();
-    close(mMainSocket);
-    mMainSocket = -1;
+    if (::connect(sock, (struct sockaddr *)&sockaddr, sizeof(sockaddr)) < 0)
+    {
+        Log::log(Log::Type::P2P, Log::Level::INFO, "Connection Failed");
+        return -3;
+    }
 
-    Log::log(Log::Type::P2P, Log::Level::INFO, "thread stopped");
+    // At this point the connection succeeded add it to the queue of mClients
+    {
+        std::unique_lock<std::mutex> lock(mClientMutex);
+        mClients[sock].mSockAddr = sockaddr;
+    }
+    {
+        std::unique_lock<std::mutex> lock(mThreadMutex);
+        epollCtl(EPOLL_CTL_ADD, sock, EPOLLIN, sock);
+    }
+
+    // Send welcome msg
 
     return 0;
 }
 
-int P2P::getNumClients(){
-    std::unique_lock<std::mutex> lock(mDataMutex);
+void P2P::newClient(struct epoll_event& ev) {
+    //New connection in Main socket
+    socklen_t size = sizeof(struct sockaddr_in);
+    struct sockaddr_in addr;
+    int newsock = accept(mMainSocket, (struct sockaddr*)&addr, &size);
+    if (newsock == -1) {
+        Log::log(Log::Type::P2P, Log::Level::ERROR, "accept error %d", errno);
+    } else {
+        Log::log(Log::Type::P2P, Log::Level::INFO, "Got a connection (id %d) from %s on port %d",
+                newsock, inet_ntoa(addr.sin_addr), htons(addr.sin_port));
+        //Add it to the client socket list & epoll
+        std::unique_lock<std::mutex> lock(mClientMutex);
+        mClients[newsock].mSockAddr = addr;
+        ev.events = EPOLLIN;
+        ev.data.fd = newsock;
+        epoll_ctl(mEpollFd, EPOLL_CTL_ADD, newsock, &ev);
+    }
+}
 
-    return mClientSocket.size();
+void P2P::serveClient(int fd) {
+    std::unique_lock<std::mutex> lock(mClientMutex);
+    auto it = mClients.find(fd);
+    if (it == mClients.end()) {
+        Log::log(Log::Type::P2P, Log::Level::ERROR, "Serve client requested on unknown FD=%d", fd);
+        epoll_ctl(mEpollFd, EPOLL_CTL_DEL, fd, NULL);
+    }
+    auto& client = it->second;
+    std::unique_lock<std::mutex> clientLock(client.mMutex);
+    lock.unlock();
+
+    auto& buffer = client.mRxBuf;
+    buffer.resize(buffer.size()+4096); //Extend it by 4096
+    int valread = -1;
+    if ((valread = read(fd, buffer.data()+buffer.size()-4096, 4096)) == 0){
+        // Disconnected
+        auto& addr = client.mSockAddr;
+        Log::log(Log::Type::P2P, Log::Level::INFO, "Disconnected (id %d) from %s on port %d",
+                fd, inet_ntoa(addr.sin_addr), htons(addr.sin_port));
+
+        // Close the socket and remove from poll
+        close(fd);
+        clientLock.unlock();
+        mClients.erase(it);
+    }else{
+        //Packet on already connected client
+        Log::log(Log::Type::P2P, Log::Level::DEBUG, "Packet on connected client (size %d)", valread);
+
+        buffer.resize(buffer.size()-4096+valread); //Shrink it again
+
+        //Process it
+        //TODO
+
+        //For the time being just print it
+        Log::log(Log::Type::P2P, Log::Level::DEBUG, "Client: %s", buffer.data());
+    }
+}
+
+void P2P::handleEvents() {
+    Event ev;
+    read(mEventFd, &ev, sizeof(ev));
+    switch(ev) {
+        default:
+            Log::log(Log::Type::P2P, Log::Level::ERROR, "unknown event received");
+        case SHUTDOWN:
+            Log::log(Log::Type::P2P, Log::Level::DEBUG, "SHUTDOWN event received");
+            mRunning = false;
+    }
+}
+
+void P2P::epollCtl(int op, int fd, uint32_t ev, int data) {
+    struct epoll_event event;
+    event.events = ev;
+    event.data.fd = data;
+    epoll_ctl(mEpollFd, op, fd, &event);
+}
+
+void P2P::threadLoop(void) {
+    Log::log(Log::Type::P2P, Log::Level::INFO, "thread created");
+
+    // Add Main Socket and Event Fd
+    epollCtl(EPOLL_CTL_ADD, mMainSocket, EPOLLIN, -1);
+    epollCtl(EPOLL_CTL_ADD, mEventFd, EPOLLIN, -2);
+
+    // Main loop
+    while (mRunning) {
+        struct epoll_event event;
+        if(epoll_wait(mEpollFd, &event, 1, -1) == -1){
+            Log::log(Log::Type::P2P, Log::Level::ERROR, "epoll error %d", errno);
+            break;
+        }
+
+        // We have been woken, check what to attend
+        if (event.data.fd == -2) {
+            // Event socket
+            handleEvents();
+        } else if (event.data.fd == -1){
+            //Process the main socket socket that has data
+            newClient(event);
+        } else {
+            // Serve this socket
+            serveClient(event.data.fd);
+        }
+    }
+
+    //Stop epoll
+    close(mEpollFd);
+
+    //Stop all sockets
+    {
+        std::unique_lock<std::mutex> lock(mClientMutex);
+        for(auto& i : mClients){
+            close(i.first);
+        }
+        mClients.clear();
+    }
+
+    close(mMainSocket);
+    mMainSocket = -1;
+
+    Log::log(Log::Type::P2P, Log::Level::INFO, "thread stopped");
+}
+
+int P2P::getNumClients(){
+    std::unique_lock<std::mutex> lock(mClientMutex);
+
+    return mClients.size();
 }
