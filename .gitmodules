@@ -16,3 +16,6 @@
 [submodule "procxx"]
 	path = modules/procxx
 	url = https://github.com/skystrife/procxx.git
+[submodule "magic_enum"]
+	path = modules/magic_enum
+	url = https://github.com/Neargye/magic_enum.git
