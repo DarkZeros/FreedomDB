@@ -31,6 +31,7 @@ public:
 
     static constexpr auto kListenQueueLen = 10;
     static constexpr auto kDefaultListenPort = 11250;
+    static constexpr auto kUpackBuffer = 4096;
     static const std::vector<std::string> kBootStrap;
 
     int mListenPort = 11250;
@@ -46,7 +47,8 @@ private:
     int mEventFd = -1;
     int mEpollFd = -1;
 
-    std::vector<std::future<int>> mTasks;
+    std::mutex mTasksMutex;
+    std::list<std::future<int>> mTasks;
 
     std::atomic<bool> mRunning = false;
     std::thread mThread;
@@ -67,6 +69,7 @@ public:
     bool start();
     void stop();
 
+    void aConnect(const std::string& address);
     int connect(std::string address);
     bool isRunning() {return mRunning;};
     int getNumClients();

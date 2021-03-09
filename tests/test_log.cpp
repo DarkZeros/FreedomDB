@@ -5,7 +5,7 @@
 #include "core/log.h"
 
 TEST_CASE("basic log functionality", "[Log]") {
-    Log::mStdout = false;
+    Log::mStdout = true;
 
     std::vector<std::tuple<Log::Type, Log::Level, std::string>> output;
     auto saveAll = [&](Log::Type t, Log::Level l, const std::string& str){

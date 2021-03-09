@@ -4,8 +4,8 @@
 #include <map>
 #include <mutex>
 #include <atomic>
-#include <thread>
 #include <netdb.h>
+#include <msgpack.hpp>
 
 /**
 * A node is an stablished connection with a socket
@@ -19,6 +19,7 @@ struct Node {
 
     sockaddr_in mSockAddr;
     std::vector<uint8_t> mRxBuf;
+    msgpack::unpacker mUnpacker;
 
     std::string mVersion;
 };

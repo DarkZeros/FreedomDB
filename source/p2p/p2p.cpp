@@ -9,6 +9,7 @@
 #include <sys/eventfd.h>
 
 #include "p2p/p2p.h"
+#include "p2p/msg.h"
 #include "core/log.h"
 
 
@@ -87,14 +88,16 @@ bool P2P::start(){
 
     // Launch connections async on all bootstrap addresses
     for (auto& str : mBootStrap) {
-        mTasks.emplace_back(std::async(std::launch::async, &P2P::connect, this, str));
+        aConnect(str);
     }
 
     return true;
 }
 
 void P2P::stop(){
-    std::unique_lock<std::mutex> lock(mThreadMutex);
+    std::unique_lock<std::mutex> lock1(mTasksMutex, std::defer_lock);
+    std::unique_lock<std::mutex> lock2(mThreadMutex, std::defer_lock);
+    std::lock(lock1, lock2);
     mTasks.clear();
     if (mRunning){
         //Send signal to thread via signalfd
@@ -105,6 +108,11 @@ void P2P::stop(){
         mEventFd = -1;
     }
     mRunning = false;
+}
+
+void P2P::aConnect(const std::string& address) {
+    std::unique_lock<std::mutex> lock(mTasksMutex);
+    mTasks.emplace_back(std::async(std::launch::async, &P2P::connect, this, address));
 }
 
 int P2P::connect(std::string address) {
@@ -150,7 +158,15 @@ int P2P::connect(std::string address) {
         epollCtl(EPOLL_CTL_ADD, sock, EPOLLIN, sock);
     }
 
-    // Send welcome msg
+    // Send our welcome msg
+    msgpack::sbuffer packed;
+    msgpack::zone z;
+    Msg::Any msg = {Msg::Type::WELCOME, 
+        msgpack::object(Msg::Welcome{0,"DANI"}, z)};
+    msgpack::pack(&packed, msg);
+    if (packed.size() != write(sock, packed.data(), packed.size())) {
+        mLog.e("Error sending to socket");
+    }
 
     return 0;
 }
@@ -163,7 +179,7 @@ void P2P::newClient(struct epoll_event& ev) {
     if (newsock == -1) {
         mLog.e("accept error {}", errno);
     } else {
-        mLog.i("Got a connection (id {}) from {}:{}",
+        mLog.i("Got a connection (fd {}) from {}:{}",
                 newsock, inet_ntoa(addr.sin_addr), htons(addr.sin_port));
         //Add it to the client socket list & epoll
         std::unique_lock<std::mutex> lock(mClientMutex);
@@ -185,30 +201,44 @@ void P2P::serveClient(int fd) {
     std::unique_lock<std::mutex> clientLock(client.mMutex);
     lock.unlock();
 
-    auto& buffer = client.mRxBuf;
-    buffer.resize(buffer.size()+4096); //Extend it by 4096
+    auto& unp = client.mUnpacker;
+    unp.reserve_buffer(kUpackBuffer);
     int valread = -1;
-    if ((valread = read(fd, buffer.data()+buffer.size()-4096, 4096)) == 0){
+    if ((valread = read(fd, unp.buffer(), kUpackBuffer)) <= 0){
+        if (valread < 0) {
+            mLog.w("Socket returned {}", valread);
+        }
         // Disconnected
         auto& addr = client.mSockAddr;
-        mLog.i("Disconnected (id {}) from {}:{}",
+        mLog.i("Disconnected (fd {}) from {}:{}",
                 fd, inet_ntoa(addr.sin_addr), htons(addr.sin_port));
 
         // Close the socket and remove from poll
         close(fd);
         clientLock.unlock();
         mClients.erase(it);
-    }else{
+    } else {
         //Packet on already connected client
         mLog.t("Packet on connected client (size {})", valread);
 
-        buffer.resize(buffer.size()-4096+valread); //Shrink it again
-
-        //Process it
-        //TODO
-
-        //For the time being just print it
-        mLog.t("Client: {}", buffer.data());
+        unp.buffer_consumed(valread);
+        msgpack::object_handle result;
+        // Message pack data loop
+        while(unp.next(result)) {
+            msgpack::object obj(result.get());
+            
+            Msg::Any any;
+            obj.convert(any);
+            if (any.type == Msg::Type::WELCOME) {
+                Msg::Welcome msg;
+                any.data.convert(msg);
+                mLog.e("Welcome msg received {}",msg.mInfo.mName.data());
+            } else if (any.type == Msg::Type::PEER_INFO) {
+                Msg::PeerInfo msg;
+                any.data.convert(msg);
+                mLog.e("Peer msg received {}", msg.mName.data());
+            }
+        }
     }
 }
 
