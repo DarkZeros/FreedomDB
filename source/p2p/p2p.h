@@ -10,6 +10,7 @@
 #include <future>
 #include <functional>
 
+#include "core/log.h"
 #include "core/nocopyormove.h"
 #include "node.h"
 
@@ -39,6 +40,8 @@ public:
     std::map<int, Node> mClients;
 
 private:
+    Log mLog;
+
     int mMainSocket = -1;
     int mEventFd = -1;
     int mEpollFd = -1;
@@ -58,6 +61,7 @@ private:
     void epollCtl(int op, int fd, uint32_t ev, int data);
 
 public:
+    P2P() : mLog(Log::Type::P2P) {}
     ~P2P() {stop();}
 
     bool start();
