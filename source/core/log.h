@@ -1,12 +1,13 @@
 #pragma once
 
 #include <atomic>
-#include <functional>
 #include <map>
 #include <mutex>
 
 #include <magic_enum.hpp>
 #include <fmt/core.h>
+
+#include "core/lazy.h"
 
 /**
 * The log class is a global singleton mutex protected
@@ -45,8 +46,8 @@ public:
     static std::atomic<bool> mStdout;
     static std::atomic<Level> mVerboseLevel;
 
-    static int add(callbackFunction callback, filterFunction filter = [](Type, Level){return true;});
-    static void remove(int id);
+    static const auto& getCallbacks() {return mCallbacks;}
+    static Lazy add(callbackFunction callback, filterFunction filter = [](Type, Level){return true;});
 
     // Templates and wrappers
     template <typename S, typename... Args>
