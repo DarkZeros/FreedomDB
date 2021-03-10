@@ -91,6 +91,7 @@ if (BUILD_TESTS)
   add_subdirectory(modules/Catch2)
   add_executable(native-tests
     tests/main.cpp
+    tests/test_log.cpp
     tests/test_p2p.cpp
     tests/test_nocopyormove.cpp
   )
