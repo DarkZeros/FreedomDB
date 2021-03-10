@@ -22,16 +22,15 @@ Log::Log(Type type) {
     mType = type;
 }
 
-int Log::add(callbackFunction callback, filterFunction filter) {
+Lazy Log::add(callbackFunction callback, filterFunction filter) {
     std::unique_lock<std::mutex> lock(mMutex);
-    mCallbacks[++mID] = {filter, callback};
-    return mID;
-}
-
-void Log::remove(int id) {
-    std::unique_lock<std::mutex> lock(mMutex);
-    auto it = mCallbacks.find(id);
-    if (it != mCallbacks.end()) {
-        mCallbacks.erase(it);
-    }
+    int id = ++mID;
+    mCallbacks[id] = {filter, callback};
+    return Lazy([&,id](){
+        std::unique_lock<std::mutex> lock(mMutex);
+        auto it = mCallbacks.find(id);
+        if (it != mCallbacks.end()) {
+            mCallbacks.erase(it);
+        }
+    });
 }
