@@ -42,8 +42,8 @@ set(CMAKE_CXX_FLAGS -pthread)
 
 add_library(freedomdb-static STATIC
   source/freedom_db.cpp
-  source/p2p/node.cpp
   source/p2p/p2p.cpp
+  source/p2p/p2p_msg.cpp
   source/core/log.cpp
 )
 include_directories(
