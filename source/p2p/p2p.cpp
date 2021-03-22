@@ -8,21 +8,37 @@
 #include <sys/epoll.h>
 #include <sys/eventfd.h>
 
+#include <random>
+
+#include <fmt/format.h>
+
 #include "p2p/p2p.h"
 #include "p2p/msg.h"
 #include "core/log.h"
 
 
 const std::vector<std::string> P2P::kBootStrap = {}; //{{"127.0.0.1:123"}};
+std::atomic<int> P2P::mUID = [](){
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<> distrib;
+    return distrib(gen);
+}();
 
 bool P2P::start(){
     mLog.d("Starting P2P network");
-    std::unique_lock<std::mutex> lock(mThreadMutex);
+    std::unique_lock lock(mThreadMutex);
 
     if (mRunning){
         mLog.d("P2P network already running");
         return true; //Its ok
     }
+
+    // Set our own peer info to inform the others (this can be changed)
+    mOwnPeerInfo.mVersion = 0; // TODO: Take from global config
+    mOwnPeerInfo.mNetID = 0; // TODO: Take from global config
+    mOwnPeerInfo.mListenPort = mListenPort;
+    mOwnPeerInfo.mUID = mUID++;
 
     // We first do the initialization of socket in the main thread
     //  This make seasy to report errors
@@ -69,9 +85,8 @@ bool P2P::start(){
     mLog.i("opened listen socket on port {}", mListenPort);
 
     // Event Fd to send data to the thread
-    mEventFd = eventfd(0,0);
-    if(mEventFd == -1){
-        mLog.e("Eventfd not set up {}", errno);
+    if(pipe(mEventPipe)){
+        mLog.e("Pipe with thread not set up {}", errno);
         return false;
     }
 
@@ -81,10 +96,10 @@ bool P2P::start(){
     mEpollFd = epoll_create(1);
 
     // Launch thread
-    std::unique_lock<std::mutex> lock2(mClientMutex);
-    mClients.clear();
-    mThread = std::thread(&P2P::threadLoop, this);
+    std::unique_lock lock2(mPeersMutex);
+    mPeers.clear();
     mRunning = true;
+    mThread = std::thread(&P2P::threadLoop, this);
 
     // Launch connections async on all bootstrap addresses
     for (auto& str : mBootStrap) {
@@ -95,33 +110,41 @@ bool P2P::start(){
 }
 
 void P2P::stop(){
-    std::unique_lock<std::mutex> lock1(mTasksMutex, std::defer_lock);
-    std::unique_lock<std::mutex> lock2(mThreadMutex, std::defer_lock);
+    std::unique_lock lock1(mTasksMutex, std::defer_lock);
+    std::unique_lock lock2(mThreadMutex, std::defer_lock);
     std::lock(lock1, lock2);
     mTasks.clear();
     if (mRunning){
-        //Send signal to thread via signalfd
-        uint64_t u64 = 1;
-        write(mEventFd, &u64, sizeof(uint64_t));
+        //Send Event to thread
+        sendThreadEvent(Event::SHUTDOWN);
         mThread.join();
-        close(mEventFd);
-        mEventFd = -1;
     }
     mRunning = false;
 }
 
+void P2P::sendThreadEvent(const Event& ev) {
+    if (sizeof(ev) != write(mEventPipe[1], &ev, sizeof(ev))) {
+        mLog.e("Error sending event to Thread");
+    }
+}
+
+
 void P2P::aConnect(const std::string& address) {
-    std::unique_lock<std::mutex> lock(mTasksMutex);
+    std::unique_lock lock(mTasksMutex);
     mTasks.emplace_back(std::async(std::launch::async, &P2P::connect, this, address));
 }
 
-int P2P::connect(std::string address) {
-    mLog.t("connecting to {}", address);
+int P2P::connect(const std::string& address) {
+    mLog.t("connecting to '{}'", address);
 
-    //Split by ":"
-    std::vector<char> chars(address.c_str(), address.c_str() + address.size() + 1u);
-    char * addr = std::strtok(chars.data(), ":");
-    auto port = atoi(std::strtok(NULL, ":"));
+    auto pos = address.find(':');
+    if (pos == address.npos) {
+        mLog.w("No ':' found in address '{}'", address);
+        return -1;
+    }
+    auto addr = address.substr(0, pos);
+    auto p = address.substr(pos+1);
+    auto port = atoi(p.c_str());
 
     auto sockfd = socket(AF_INET, SOCK_STREAM, 0);
     int sock = 0, valread;
@@ -136,7 +159,7 @@ int P2P::connect(std::string address) {
     sockaddr.sin_port = htons(port);
 
     // Convert IPv4 and IPv6 addresses from text to binary form
-    if (inet_pton(AF_INET, addr, &sockaddr.sin_addr)<=0)
+    if (inet_pton(AF_INET, addr.c_str(), &sockaddr.sin_addr)<=0)
     {
         mLog.w("Invalid address {}", addr);
         return -2;
@@ -148,31 +171,36 @@ int P2P::connect(std::string address) {
         return -3;
     }
 
-    // At this point the connection succeeded add it to the queue of mClients
-    {
-        std::unique_lock<std::mutex> lock(mClientMutex);
-        mClients[sock].mSockAddr = sockaddr;
-    }
-    {
-        std::unique_lock<std::mutex> lock(mThreadMutex);
-        epollCtl(EPOLL_CTL_ADD, sock, EPOLLIN, sock);
-    }
+    // At this point the connection succeeded add it to the queue of mPeers
+    std::unique_lock lock(mPeersMutex);
+    auto& peer = insertPeer(sockaddr, sock, Peer::Direction::OUT);
 
-    // Send our welcome msg
-    msgpack::sbuffer packed;
-    msgpack::zone z;
-    Msg::Any msg = {Msg::Type::WELCOME, 
-        msgpack::object(Msg::Welcome{0,"DANI"}, z)};
-    msgpack::pack(&packed, msg);
-    if (packed.size() != write(sock, packed.data(), packed.size())) {
-        mLog.e("Error sending to socket");
-    }
+    // We connected, so we have to send our own peer info/discovery list
+    sendThreadEvent(PEER_WELCOME);
+    sendThreadEventData(sock);
 
     return 0;
 }
 
-void P2P::newClient(struct epoll_event& ev) {
-    //New connection in Main socket
+Peer& P2P::insertPeer(const sockaddr_in& sockaddr, int sock, const Peer::Direction& dir) {
+    {
+        std::unique_lock lock(mPeersMutex);
+        mPeers[sock].mConAddress = inet_ntoa(sockaddr.sin_addr);
+        mPeers[sock].mConPort = htons(sockaddr.sin_port);
+        mPeers[sock].mFd = sock;
+        mPeers[sock].mReady = false; // Not ready until we check peer info
+        mPeers[sock].mDirection = dir;
+    }
+    {
+        std::unique_lock<std::mutex> lock(mThreadMutex);
+        if (mRunning)
+            epollCtl(EPOLL_CTL_ADD, sock, EPOLLIN, sock);
+    }
+    return mPeers[sock];
+}
+
+void P2P::newPeer(struct epoll_event& ev) {
+    // New connection in Main socket
     socklen_t size = sizeof(struct sockaddr_in);
     struct sockaddr_in addr;
     int newsock = accept(mMainSocket, (struct sockaddr*)&addr, &size);
@@ -181,76 +209,111 @@ void P2P::newClient(struct epoll_event& ev) {
     } else {
         mLog.i("Got a connection (fd {}) from {}:{}",
                 newsock, inet_ntoa(addr.sin_addr), htons(addr.sin_port));
-        //Add it to the client socket list & epoll
-        std::unique_lock<std::mutex> lock(mClientMutex);
-        mClients[newsock].mSockAddr = addr;
-        ev.events = EPOLLIN;
-        ev.data.fd = newsock;
-        epoll_ctl(mEpollFd, EPOLL_CTL_ADD, newsock, &ev);
+        // Add it to the peer socket list & epoll
+        insertPeer(addr, newsock, Peer::Direction::IN);
     }
 }
 
-void P2P::serveClient(int fd) {
-    std::unique_lock<std::mutex> lock(mClientMutex);
-    auto it = mClients.find(fd);
-    if (it == mClients.end()) {
-        mLog.e("Serve client requested on unknown FD={}", fd);
-        epoll_ctl(mEpollFd, EPOLL_CTL_DEL, fd, NULL);
+void P2P::removePeer(const Peer& peer) {
+    removePeer(peer.mFd);
+}
+void P2P::removePeer(int fd) {
+    std::unique_lock lock(mPeersMutex);
+    auto it = mPeers.find(fd);
+    if (it != mPeers.end()) {
+        auto& peer = it->second;
+        std::unique_lock lock(peer.mMutex);
+        lock.unlock();
+
+        // Disconnected
+        mLog.i("Disconnected from {}", peer);
+
+        // Close the socket and remove from poll
+        close(peer.mFd);
+        epoll_ctl(mEpollFd, EPOLL_CTL_DEL, peer.mFd, NULL);
+        mPeers.erase(it);
     }
-    auto& client = it->second;
-    std::unique_lock<std::mutex> clientLock(client.mMutex);
+}
+
+
+void P2P::servePeer(int fd) {
+    std::unique_lock lock(mPeersMutex);
+    auto it = mPeers.find(fd);
+    if (it == mPeers.end()) {
+        mLog.w("Serve peer requested on unknown FD={}", fd);
+        epoll_ctl(mEpollFd, EPOLL_CTL_DEL, fd, NULL);
+        return;
+    }
+    auto& peer = it->second;
+
+    std::unique_lock peerLock(peer.mMutex);
     lock.unlock();
 
-    auto& unp = client.mUnpacker;
+    auto& unp = peer.mUnpacker;
     unp.reserve_buffer(kUpackBuffer);
     int valread = -1;
     if ((valread = read(fd, unp.buffer(), kUpackBuffer)) <= 0){
         if (valread < 0) {
             mLog.w("Socket returned {}", valread);
         }
-        // Disconnected
-        auto& addr = client.mSockAddr;
-        mLog.i("Disconnected (fd {}) from {}:{}",
-                fd, inet_ntoa(addr.sin_addr), htons(addr.sin_port));
-
-        // Close the socket and remove from poll
-        close(fd);
-        clientLock.unlock();
-        mClients.erase(it);
+        peerLock.unlock();
+        removePeer(fd);
     } else {
-        //Packet on already connected client
-        mLog.t("Packet on connected client (size {})", valread);
+        //Packet on already connected peer
+        mLog.t("Packet on connected peer (size {})", valread);
 
         unp.buffer_consumed(valread);
         msgpack::object_handle result;
-        // Message pack data loop
-        while(unp.next(result)) {
+        // Message pack data loop, only one, since it may be destroyed afterwards
+        if (unp.next(result)) {
             msgpack::object obj(result.get());
             
-            Msg::Any any;
-            obj.convert(any);
-            if (any.type == Msg::Type::WELCOME) {
-                Msg::Welcome msg;
-                any.data.convert(msg);
-                mLog.e("Welcome msg received {}",msg.mInfo.mName.data());
-            } else if (any.type == Msg::Type::PEER_INFO) {
-                Msg::PeerInfo msg;
-                any.data.convert(msg);
-                mLog.e("Peer msg received {}", msg.mName.data());
-            }
+            // New object received, parse it to the peer processor
+            decodeMsg(peer, obj);
         }
     }
 }
 
 void P2P::handleEvents() {
     Event ev;
-    read(mEventFd, &ev, sizeof(ev));
+    read(mEventPipe[0], &ev, sizeof(ev));
     switch(ev) {
         default:
             mLog.e("unknown event received {}", ev);
         case SHUTDOWN:
             mLog.d("Event received {}", ev);
             mRunning = false;
+            break;
+        case PEER_WELCOME: {
+            int fd;
+            read(mEventPipe[0], &fd, sizeof(fd));
+            std::unique_lock<std::recursive_mutex> lock(mPeersMutex);
+            auto it = mPeers.find(fd);
+            if (it != mPeers.end()) {
+                sendMsg_PeerInfo(it->second);
+                sendMsg_Discovery(it->second);
+            }
+            break;
+        }
+        case PEER_CLOSE: {
+            int fd;
+            read(mEventPipe[0], &fd, sizeof(fd));
+            mLog.d("Closing connection with {}", fd);
+            removePeer(fd);
+            break;
+        }
+        case TRY_CONNECT: {
+            std::random_device random_device;
+            std::mt19937 engine{random_device()};
+            while (getNumClients() < kTargetNumPeers && mAddressPool.size() > 0) {
+                std::uniform_int_distribution<int> dist(0, mAddressPool.size() - 1);
+                int idx = dist(engine);
+                aConnect(mAddressPool[idx]);
+                mAddressPool[idx].swap(mAddressPool.back());
+                mAddressPool.resize(mAddressPool.size()-1);
+            }
+            break;
+        }
     }
 }
 
@@ -266,7 +329,7 @@ void P2P::threadLoop(void) {
 
     // Add Main Socket and Event Fd
     epollCtl(EPOLL_CTL_ADD, mMainSocket, EPOLLIN, -1);
-    epollCtl(EPOLL_CTL_ADD, mEventFd, EPOLLIN, -2);
+    epollCtl(EPOLL_CTL_ADD, mEventPipe[0], EPOLLIN, -2);
 
     // Main loop
     while (mRunning) {
@@ -282,23 +345,25 @@ void P2P::threadLoop(void) {
             handleEvents();
         } else if (event.data.fd == -1){
             //Process the main socket socket that has data
-            newClient(event);
+            newPeer(event);
         } else {
             // Serve this socket
-            serveClient(event.data.fd);
+            servePeer(event.data.fd);
         }
     }
 
-    //Stop epoll
+    //Stop epoll & Pipes
     close(mEpollFd);
+    close(mEventPipe[0]);
+    close(mEventPipe[1]);
 
     //Stop all sockets
     {
-        std::unique_lock<std::mutex> lock(mClientMutex);
-        for(auto& i : mClients){
+        std::unique_lock lock(mPeersMutex);
+        for(auto& i : mPeers){
             close(i.first);
         }
-        mClients.clear();
+        mPeers.clear();
     }
 
     close(mMainSocket);
@@ -308,7 +373,7 @@ void P2P::threadLoop(void) {
 }
 
 int P2P::getNumClients(){
-    std::unique_lock<std::mutex> lock(mClientMutex);
+    std::unique_lock lock(mPeersMutex);
 
-    return mClients.size();
+    return mPeers.size();
 }
