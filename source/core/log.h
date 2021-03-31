@@ -44,6 +44,7 @@ public:
     // There is a special print to STDOUT with its own Level
     // It is handled by a callback[0], but it refers to these switches
     static std::atomic<bool> mStdout;
+    static std::atomic<bool> mColored;
     static std::atomic<Level> mVerboseLevel;
 
     static const auto& getCallbacks() {return mCallbacks;}
