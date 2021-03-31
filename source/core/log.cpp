@@ -12,7 +12,11 @@ std::map<int, std::pair<Log::filterFunction, Log::callbackFunction>> Log::mCallb
       {
         [](Type, Level level) {return Log::mStdout && level >= mVerboseLevel;},
         [](Type t, Level l, const std::string& str) {
-          fmt::print("{} {:c} {}\n", magic_enum::enum_name(t), magic_enum::enum_name(l)[0], str);
+          fmt::print("{:4x} {} {:c} {}\n",
+            std::hash<std::thread::id>{}(std::this_thread::get_id()) % 0x10000,
+            magic_enum::enum_name(t),
+            magic_enum::enum_name(l)[0],
+            str);
         }
       }
     }
