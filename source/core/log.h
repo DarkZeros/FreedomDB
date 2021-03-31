@@ -29,6 +29,7 @@ public:
         CORE,
         DB,
         TIMER,
+        CMD,
         P2P,
     };
 

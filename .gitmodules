@@ -19,3 +19,6 @@
 [submodule "magic_enum"]
 	path = modules/magic_enum
 	url = https://github.com/Neargye/magic_enum.git
+[submodule "cxxopts"]
+	path = modules/cxxopts
+	url = https://github.com/jarro2783/cxxopts.git

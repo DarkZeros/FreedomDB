@@ -55,7 +55,7 @@ void P2P::decodeMsg_PeerInfo(Peer& peer, const Msg::PeerInfo& msg){
         removePeer(peer.mFd);
     }
     else if (msg.mUID == mOwnPeerInfo.mUID) {
-        mLog.w("Peer {} is likely ourselve, exit {}", peer, msg.mUID);
+        mLog.d("{} is likely ourselve, discarding {}", peer, msg.mUID);
         removePeer(peer.mFd);
     } else {
         // The peer info is valid, set it
