@@ -54,6 +54,7 @@ include_directories(SYSTEM
   ${PROJECT_SOURCE_DIR}/modules/procxx/include
   ${PROJECT_SOURCE_DIR}/modules/magic_enum/include
   ${PROJECT_SOURCE_DIR}/modules/msgpack/include
+  ${PROJECT_SOURCE_DIR}/modules/cxxopts/include
   ${Boost_INCLUDE_DIRS}
 )
 target_link_libraries(freedomdb-static

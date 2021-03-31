@@ -32,10 +32,17 @@ Encorages users to delete unneeded data, and to perform little transactions, but
 # What technologies it has?
 
 - PostgreSQL(libpbxx): Main Database, contains all the data and executes the transactions. Also ensures permissions.
-- MsgPack: For the P2P exchange of SQL Transactions performed by clients
+- MsgPack: For the P2P exchange of messages
 - Cryptopp: Glue that ensures crypto security in transactions, blockchain, and DB hashing
 - Pybind11: Provides C++/Python interfaces
+- cxxopts: Command line interface & arguments
 - fmt/magic_enum: Because easy printing is important
+- procxx: Easy launch shell commands for testing purposes
+- Catch2: TDD key element
+
+# Thanks to all contributors of open source modules
+
+- TODO
 
 # How to build and develop ?
 Just preinstall these requisites:

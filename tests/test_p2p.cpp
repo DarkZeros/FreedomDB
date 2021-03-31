@@ -95,7 +95,6 @@ TEST_CASE("connect one to another", "[P2P]") {
         REQUIRE(client2.getNumClients() == 1);
         REQUIRE(client3.getNumClients() == 0);
 
-        Log::e(Log::Type::DB, "STARTING CLIENT 3");
         client3.start();
         std::this_thread::sleep_for(2*kWaitTimeOut);
 
