@@ -10,8 +10,8 @@
 #include <future>
 #include <functional>
 
+#include "common/nocopyormove.h"
 #include "core/log.h"
-#include "core/nocopyormove.h"
 #include "peer.h"
 
 class P2P : private NoCopyOrMove {

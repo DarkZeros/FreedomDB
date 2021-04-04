@@ -7,7 +7,7 @@
 #include <magic_enum.hpp>
 #include <fmt/core.h>
 
-#include "core/lazy.h"
+#include "common/lazy.h"
 
 /**
 * The log class is a global singleton mutex protected
