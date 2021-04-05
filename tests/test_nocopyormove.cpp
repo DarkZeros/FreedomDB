@@ -4,17 +4,23 @@
 
 #include "common/nocopyormove.h"
 
-CATCH_STATIC_REQUIRE_FALSE(std::is_move_constructible<NoCopyOrMove>::value);
+TEST_CASE("no copy no move", "[Util]") {
+    STATIC_REQUIRE_FALSE(std::is_move_constructible<NoCopyOrMove>::value);
+    STATIC_REQUIRE_FALSE(std::is_move_assignable<NoCopyOrMove>::value);
+    STATIC_REQUIRE_FALSE(std::is_copy_constructible<NoCopyOrMove>::value);
+    STATIC_REQUIRE_FALSE(std::is_copy_assignable<NoCopyOrMove>::value);
+}
 
 TEST_CASE("no copy", "[Util]") {
-    NoCopyOrMove nc;
+    STATIC_REQUIRE(std::is_move_constructible<NoCopy>::value);
+    STATIC_REQUIRE(std::is_move_assignable<NoCopy>::value);
+    STATIC_REQUIRE_FALSE(std::is_copy_constructible<NoCopy>::value);
+    STATIC_REQUIRE_FALSE(std::is_copy_assignable<NoCopy>::value);
+}
 
-    /*SECTION("can be moved constructed") {
-        NoCopyOrMove nc1(std::move(NoCopyOrMove());
-    }
-
-    SECTION("can be moved") {
-        NoCopyOrMove nc1;
-        nc1 = std::move(nc);
-    }*/
+TEST_CASE("no move", "[Util]") {
+    STATIC_REQUIRE_FALSE(std::is_move_constructible<NoMove>::value);
+    STATIC_REQUIRE_FALSE(std::is_move_assignable<NoMove>::value);
+    STATIC_REQUIRE(std::is_copy_constructible<NoMove>::value);
+    STATIC_REQUIRE(std::is_copy_assignable<NoMove>::value);
 }

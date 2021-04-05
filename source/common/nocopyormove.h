@@ -1,13 +1,27 @@
 #pragma once
 
-class NoCopyOrMove
+class NoCopy
 {
 public:
-    NoCopyOrMove() = default;
+    NoCopy() = default;
 
-    NoCopyOrMove(const NoCopyOrMove&) = delete;
-    NoCopyOrMove& operator=(const NoCopyOrMove&) = delete;
+    NoCopy(const NoCopy&) = delete;
+    NoCopy& operator=(const NoCopy&) = delete;
 
-    NoCopyOrMove(NoCopyOrMove&&) = delete;
-    NoCopyOrMove& operator=(NoCopyOrMove&&) = delete;
+    NoCopy(NoCopy&&) = default;
+    NoCopy& operator=(NoCopy&&) = default;
 };
+
+class NoMove
+{
+public:
+    NoMove() = default;
+
+    NoMove(const NoMove&) = default;
+    NoMove& operator=(const NoMove&) = default;
+
+    NoMove(const NoMove&&) = delete;
+    NoMove& operator=(const NoMove&&) = delete;
+};
+
+class NoCopyOrMove : private NoCopy, NoMove {};
