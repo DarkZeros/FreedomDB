@@ -46,11 +46,11 @@ public:
 
     std::recursive_mutex mPeersMutex;
     std::map<int, Peer> mPeers;
-    Msg::PeerInfo mOwnPeerInfo;
+    Msg::PeerInfo mOwnPeerInfo = {};
 
 private:
     static std::atomic<int> mUID;
-    Log mLog;
+    Log mLog = Log(Log::Type::P2P);
 
     int mMainSocket = -1;
     int mEventPipe[2] = {};
@@ -91,7 +91,7 @@ private:
     void sendMsg_Disconnect(Peer& peer, const Msg::Disconnect::Reason& r=Msg::Disconnect::Reason::UNKNOWN, const std::string& text = {});
 
 public:
-    P2P() : mLog(Log::Type::P2P), mOwnPeerInfo{} {}
+    P2P() = default;
     ~P2P() {stop();}
 
     bool start();
