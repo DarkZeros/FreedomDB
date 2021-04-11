@@ -6,6 +6,7 @@
 
 #include <magic_enum.hpp>
 #include <fmt/core.h>
+#include <fmt/format.h>
 
 #include "common/lazy.h"
 
@@ -25,10 +26,10 @@ public:
         ERROR,
     };
     enum class Type {
-        NOTYPE = 0,
+        UNKW = 0,
         CORE,
         DB,
-        TIMER,
+        TIME,
         CMD,
         P2P,
     };
@@ -52,8 +53,13 @@ public:
     static Lazy add(callbackFunction callback, filterFunction filter = [](Type, Level){return true;});
 
     // Templates and wrappers
-    template <typename S, typename... Args>
-    static void log(Type type, Level level, const S& s, Args&&... args)
+    template <typename... Args>
+    static void log(Level level, Type type, Args&&... args)
+    {
+        log(type, level, std::forward<Args>(args)...);
+    }
+    template <typename... Args>
+    static void log(Type type, Level level, Args&&... args)
     {
         // Go through all Callbacks and if we have any to call
         //  then lazy evaluate the format and call it
@@ -64,65 +70,66 @@ public:
             auto& [filter, call] = callback;
             if (filter(type, level)) {
                 if (!done)
-                    str = fmt::format(s, std::forward<Args>(args)...);
+                    str = fmt::format(std::forward<Args>(args)...);
                 done = true;
                 call(type, level, str);
             }
         }
     }
-    template <typename S, typename... Args>
-    static void t(Type type, const S& s, Args&&... args)
+
+    template <typename... Args>
+    static void t(Type type, Args&&... args)
     {
-        log(type, Level::TRACE, s, std::forward<Args>(args)...);
+        log(type, Level::TRACE, std::forward<Args>(args)...);
     }
-    template <typename S, typename... Args>
-    static void d(Type type, const S& s, Args&&... args)
+    template <typename... Args>
+    static void d(Type type, Args&&... args)
     {
-        log(type, Level::DEBUG, s, std::forward<Args>(args)...);
+        log(type, Level::DEBUG, std::forward<Args>(args)...);
     }
-    template <typename S, typename... Args>
-    static void i(Type type, const S& s, Args&&... args)
+    template <typename... Args>
+    static void i(Type type, Args&&... args)
     {
-        log(type, Level::INFO, s, std::forward<Args>(args)...);
+        log(type, Level::INFO, std::forward<Args>(args)...);
     }
-    template <typename S, typename... Args>
-    static void w(Type type, const S& s, Args&&... args)
+    template <typename... Args>
+    static void w(Type type, Args&&... args)
     {
-        log(type, Level::WARN, s, std::forward<Args>(args)...);
+        log(type, Level::WARN, std::forward<Args>(args)...);
     }
-    template <typename S, typename... Args>
-    static void e(Type type, const S& s, Args&&... args)
+    template <typename... Args>
+    static void e(Type type, Args&&... args)
     {
-        log(type, Level::ERROR, s, std::forward<Args>(args)...);
+        log(type, Level::ERROR, std::forward<Args>(args)...);
     }
 
     // Same but when you instantiate an object, you use the object defaults
     Log(Type type);
     Type mType;
 
-    template <typename S, typename... Args>
-    void t(const S& s, Args&&... args)
+    template <typename... Args>
+    void t(Args&&... args)
     {
-        log(mType, Level::TRACE, s, std::forward<Args>(args)...);
+        log(mType, Level::TRACE, std::forward<Args>(args)...);
     }
-    template <typename S, typename... Args>
-    void d(const S& s, Args&&... args)
+    template <typename... Args>
+    void d(Args&&... args)
     {
-        log(mType, Level::DEBUG, s, std::forward<Args>(args)...);
+        log(mType, Level::DEBUG, std::forward<Args>(args)...);
     }
-    template <typename S, typename... Args>
-    void i(const S& s, Args&&... args)
+    template <typename... Args>
+    void i(Args&&... args)
     {
-        log(mType, Level::INFO, s, std::forward<Args>(args)...);
+        log(mType, Level::INFO, std::forward<Args>(args)...);
     }
-    template <typename S, typename... Args>
-    void w(const S& s, Args&&... args)
+    template <typename... Args>
+    void w(Args&&... args)
     {
-        log(mType, Level::WARN, s, std::forward<Args>(args)...);
+        log(mType, Level::WARN, std::forward<Args>(args)...);
     }
-    template <typename S, typename... Args>
-    void e(const S& s, Args&&... args)
+    template <typename... Args>
+    void e(Args&&... args)
     {
-        log(mType, Level::ERROR, s, std::forward<Args>(args)...);
+        log(mType, Level::ERROR, std::forward<Args>(args)...);
     }
 };
