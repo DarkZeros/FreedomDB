@@ -9,7 +9,7 @@ class Lazy
     std::future<void> mFuture;
 
 public:
-    Lazy(std::function<void()> f) : mFuture(std::async(std::launch::deferred, f)) {}
+    Lazy(std::function<void()>&& f) : mFuture(std::async(std::launch::deferred, f)) {}
     ~Lazy() {mFuture.wait();}
 
     void wait() {mFuture.wait();}
