@@ -77,7 +77,13 @@ private:
     void sendThreadEvent(const Event& ev);
     template<class T>
     void sendThreadEventData(const T& data){
-        write(mEventPipe[1], &data, sizeof(data));
+        if(sizeof(data) != write(mEventPipe[1], &data, sizeof(data)))
+            mLog.e("sendThreadEventData failed {}", data);
+    }
+    template<class T>
+    void readThreadEventData(T& data){
+        if(sizeof(data) != read(mEventPipe[0], &data, sizeof(data)))
+            mLog.e("readThreadEventData failed {}", data);
     }
 
     void decodeMsg(Peer& peer, const msgpack::object& obj);
