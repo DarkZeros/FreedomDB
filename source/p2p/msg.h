@@ -21,10 +21,10 @@ struct PeerInfo {
     // Irrelevant Misc information
     std::array<char, 16> mName;
     // General information
-    int mListenPort;
-    int mVersion;
-    int mNetID;
-    int mUID;
+    uint32_t mListenPort;
+    uint32_t mVersion;
+    uint32_t mNetID;
+    uint32_t mUID;
     MSGPACK_DEFINE(mName, mListenPort, mVersion, mNetID, mUID);
 };
 struct Discovery {

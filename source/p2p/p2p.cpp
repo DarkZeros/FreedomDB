@@ -276,7 +276,7 @@ void P2P::servePeer(int fd) {
 
 void P2P::handleEvents() {
     Event ev;
-    read(mEventPipe[0], &ev, sizeof(ev));
+    readThreadEventData(ev);
     switch(ev) {
         default:
             mLog.e("unknown event received {}", ev);
@@ -286,7 +286,7 @@ void P2P::handleEvents() {
             break;
         case PEER_WELCOME: {
             int fd;
-            read(mEventPipe[0], &fd, sizeof(fd));
+            readThreadEventData(fd);
             std::unique_lock<std::recursive_mutex> lock(mPeersMutex);
             auto it = mPeers.find(fd);
             if (it != mPeers.end()) {
@@ -297,7 +297,7 @@ void P2P::handleEvents() {
         }
         case PEER_CLOSE: {
             int fd;
-            read(mEventPipe[0], &fd, sizeof(fd));
+            readThreadEventData(fd);
             mLog.d("Closing connection with {}", fd);
             removePeer(fd);
             break;
