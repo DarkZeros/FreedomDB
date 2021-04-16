@@ -95,6 +95,7 @@ if (BUILD_TESTS)
     tests/test_log.cpp
     tests/test_p2p.cpp
     tests/test_nocopyormove.cpp
+    tests/test_utils.cpp
   )
   target_link_libraries(native-tests PRIVATE Catch2::Catch2WithMain)
 endif ()
