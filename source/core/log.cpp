@@ -18,7 +18,7 @@ std::map<int, std::pair<Log::filterFunction, Log::callbackFunction>> Log::mCallb
         [](Type, Level level) {return Log::mStdout && !Log::mColored && level >= mVerboseLevel;},
         [](Type t, Level l, const std::string& str) {
           auto tid = std::hash<std::thread::id>{}(std::this_thread::get_id()) % 0x1000000;
-          fmt::print("{:4x} {:3} {:c} {}\n",
+          fmt::print("{:04x} {:3} {:c} {}\n",
               tid % 0x10000,
               magic_enum::enum_name(t),
               magic_enum::enum_name(l)[0],
@@ -50,7 +50,7 @@ std::map<int, std::pair<Log::filterFunction, Log::callbackFunction>> Log::mCallb
           auto iLevel = *magic_enum::enum_index(l);
           auto iType = *magic_enum::enum_index(t);
 
-          fmt::print(fg(color(tid)), "{:4x}", tid % 0x10000);
+          fmt::print(fg(color(tid)), "{:04x}", tid % 0x10000);
           fmt::print(tColors[iType], " {:3}", magic_enum::enum_name(t));
           fmt::print(lColors[iLevel], " {:c}", magic_enum::enum_name(l)[0]);
 
