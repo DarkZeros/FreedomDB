@@ -12,7 +12,7 @@ std::vector<T> split(const std::string& ori, const S sep )
 {
     std::vector<T> results;
     size_t pos = 0;
-    while ( true ) {
+    while ( pos < ori.size() ) {
         auto npos = ori.find(sep, pos);
         if (npos == pos) {
             pos = npos+1;
@@ -20,8 +20,7 @@ std::vector<T> split(const std::string& ori, const S sep )
             results.emplace_back(ori.data() + pos, npos-pos);
             pos = npos+1;
         } else {
-            if (pos < ori.size()-1)
-                results.emplace_back(ori.data() + pos, ori.size() - pos);
+            results.emplace_back(ori.data() + pos, ori.size() - pos);
             break;
         }
     }

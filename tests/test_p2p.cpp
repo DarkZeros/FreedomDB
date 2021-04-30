@@ -89,14 +89,14 @@ TEST_CASE("connect one to another", "[P2P]") {
 
     SECTION("chain connect 3 -> 1 <-> 2") {
         client2.start();
-        std::this_thread::sleep_for(kWaitTimeOut);
+        std::this_thread::sleep_for(2 * kWaitTimeOut);
 
         REQUIRE(client1.getNumClients() == 1);
         REQUIRE(client2.getNumClients() == 1);
         REQUIRE(client3.getNumClients() == 0);
 
         client3.start();
-        std::this_thread::sleep_for(2*kWaitTimeOut);
+        std::this_thread::sleep_for(2 * kWaitTimeOut);
 
         CHECK(client1.getNumClients() == 2);
         CHECK(client2.getNumClients() == 2);

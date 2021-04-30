@@ -58,6 +58,16 @@ public:
     {
         log(type, level, std::forward<Args>(args)...);
     }
+    template <typename T>
+    static std::string _format(T&& arg)
+    {
+        return fmt::format("{}", std::forward<T>(arg));
+    }
+    template <typename... Args>
+    static std::string _format(Args&&... args)
+    {
+        return fmt::format(std::forward<Args>(args)...);
+    }
     template <typename... Args>
     static void log(Type type, Level level, Args&&... args)
     {
@@ -70,7 +80,7 @@ public:
             auto& [filter, call] = callback;
             if (filter(type, level)) {
                 if (!done)
-                    str = fmt::format(std::forward<Args>(args)...);
+                    str = _format(std::forward<Args>(args)...);
                 done = true;
                 call(type, level, str);
             }

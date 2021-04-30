@@ -4,6 +4,8 @@
 
 TEST_CASE("Split string to strings", "[Utils]") {
     auto [input, delimit, expected] = GENERATE(table<std::string, char, std::string>({
+        {"", '\n', ""},
+        {"h", '\n', "h"},
         {"hi\nhow\ngood", '\n', "hi:how:good"},
         {"\nhi\n\nhow\ngood\n", '\n', "hi:how:good"},
         {"\nhi\nhow\n\n\n\ngood\n", '\n', "hi:how:good"},

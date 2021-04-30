@@ -48,6 +48,32 @@ TEST_CASE("basic log functionality", "[Log]") {
     }
 }
 
+TEST_CASE("printing with different data", "[Log]") {
+    Log::mStdout = true;
+    Log mLog(Log::Type::UNKW);
+
+    struct {
+        Log::Type t;
+        Log::Level l;
+        std::string str;
+    } output;
+    auto saveAll = [&](Log::Type t, Log::Level l, const std::string& str){
+        output.t =  t;
+        output.l = l;
+        output.str = str;
+    };
+    auto c1 = Log::add(saveAll);
+
+    mLog.e(1);
+    CHECK(output.str == "1");
+
+    mLog.e(123);
+    CHECK(output.str == "123");
+
+    mLog.e("{}asd");
+    CHECK(output.str == "{}asd");
+}
+
 TEST_CASE("benchmark log functionality", "[.][Log]") {
     Log::mStdout = false;
 
@@ -67,11 +93,11 @@ TEST_CASE("benchmark log functionality", "[.][Log]") {
     };
 
     BENCHMARK("empty call with costly argument"){
-        Log::e(Log::Type::P2P, "{}", fmt::join(costlyVector, ","));
+        Log::e(Log::Type::P2P, fmt::join(costlyVector, ","));
     };
     BENCHMARK("add/remove + call with costly argument"){
         auto c = Log::add(saveAll);
-        Log::e(Log::Type::P2P, "{}", fmt::join(costlyVector, ","));
+        Log::e(Log::Type::P2P, fmt::join(costlyVector, ","));
     };
     BENCHMARK("add/remove + call with cheap argument"){
         auto c = Log::add(saveAll);
