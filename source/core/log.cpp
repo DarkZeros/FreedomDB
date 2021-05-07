@@ -2,6 +2,7 @@
 #include <fmt/color.h>
 
 #include "core/log.h"
+#include "common/utils.h"
 
 std::mutex Log::mMutex;
 std::atomic<bool> Log::mStdout = true;
@@ -11,21 +12,21 @@ std::atomic<Log::Level> Log::mVerboseLevel = Log::kDefaultVerboseLevel;
 using namespace fmt;
 
 std::map<int, std::pair<Log::filterFunction, Log::callbackFunction>> Log::mCallbacks = {
-    // Uncolored
+    // Uncolored to stdout
     {0,
       {
         [](Type, Level level) {return Log::mStdout && !Log::mColored && level >= mVerboseLevel;},
         [](Type t, Level l, const std::string& str) {
           auto tid = std::hash<std::thread::id>{}(std::this_thread::get_id()) % 0x1000000;
-          fmt::print("{:4x} {:3} {:c} {}\n",
-              tid,
+          fmt::print("{:04x} {:3} {:c} {}\n",
+              tid % 0x10000,
               magic_enum::enum_name(t),
               magic_enum::enum_name(l)[0],
               str);
         }
       }
     },
-    // Colored
+    // Colored to stdout
     {1,
       {
         [](Type, Level level) {return Log::mStdout && Log::mColored && level >= mVerboseLevel;},
@@ -49,10 +50,14 @@ std::map<int, std::pair<Log::filterFunction, Log::callbackFunction>> Log::mCallb
           auto iLevel = *magic_enum::enum_index(l);
           auto iType = *magic_enum::enum_index(t);
 
-          fmt::print(fg(color(tid)), "{:6x}", tid);
+          fmt::print(fg(color(tid)), "{:04x}", tid % 0x10000);
           fmt::print(tColors[iType], " {:3}", magic_enum::enum_name(t));
           fmt::print(lColors[iLevel], " {:c}", magic_enum::enum_name(l)[0]);
-          fmt::print(" {}\n", str);
+
+          auto s = split<std::string_view>(str, '\n');
+          fmt::print(" {}\n", s[0]);
+          for(auto i=1; i<s.size(); i++)
+            fmt::print("           {}\n", s[i]);
         }
       }
     }

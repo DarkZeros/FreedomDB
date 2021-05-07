@@ -42,6 +42,8 @@ set(CMAKE_CXX_FLAGS -pthread)
 
 add_library(freedomdb-static STATIC
   source/freedom_db.cpp
+  source/db/db.cpp
+  source/db/pool.cpp
   source/p2p/p2p.cpp
   source/p2p/p2p_msg.cpp
   source/core/log.cpp
@@ -92,9 +94,12 @@ if (BUILD_TESTS)
   add_subdirectory(modules/Catch2)
   add_executable(native-tests
     tests/main.cpp
+    tests/test_db.cpp
+    tests/test_db_pool.cpp
     tests/test_log.cpp
     tests/test_p2p.cpp
     tests/test_nocopyormove.cpp
+    tests/test_utils.cpp
   )
   target_link_libraries(native-tests PRIVATE Catch2::Catch2WithMain)
 endif ()
